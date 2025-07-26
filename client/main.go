@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -15,14 +16,19 @@ import (
 )
 
 var (
-	port     = flag.String("port", "8080", "local forwarding port")
-	addr     = flag.String("addr", "localhost:8000", "http service address")
+	port     = flag.String("port", "", "local forwarding port (required)")
+	addr     = flag.String("addr", "", "http service address (required)")
 	wsc      *websocket.Conn
 	localUrl *url.URL
 )
 
 func main() {
 	flag.Parse()
+	if *port == "" || *addr == "" {
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		flag.PrintDefaults()
+		return
+	}
 
 	var err error
 	localUrl, err = url.Parse("http://127.0.0.1:" + *port)
