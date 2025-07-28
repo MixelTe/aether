@@ -17,14 +17,16 @@ import (
 
 var (
 	port     = flag.String("port", "", "local forwarding port (required)")
-	addr     = flag.String("addr", "", "http service address (required)")
+	host     = flag.String("host", "", "http service address (required)")
 	wsc      *websocket.Conn
 	localUrl *url.URL
+	loginfo = log.New(os.Stdout, "", log.Ltime)
 )
 
 func main() {
 	flag.Parse()
-	if *port == "" || *addr == "" {
+	log.SetFlags(log.Ltime)
+	if *port == "" || *host == "" {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 		return
@@ -40,8 +42,8 @@ func main() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/aether/client/ws"}
-	log.Printf("connecting to %s", u.String())
+	u := url.URL{Scheme: "ws", Host: *host, Path: "/aether/client/ws"}
+	loginfo.Printf("connecting to %s", u.String())
 
 	wsc, _, err = websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
@@ -71,7 +73,7 @@ func main() {
 		case <-done:
 			return
 		case <-interrupt:
-			log.Println("interrupt")
+			loginfo.Println("interrupt")
 
 			err := wsc.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
@@ -104,6 +106,7 @@ func processRequest(message []byte) {
 		return
 	}
 
+	loginfo.Printf("[%v] %v", req.Method, req.URL)
 	wsc.WriteMessage(websocket.TextMessage, res)
 }
 

@@ -21,6 +21,7 @@ var (
 
 func main() {
 	flag.Parse()
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	r := gin.Default()
 	r.GET("/aether/client/ws", ws)
 	r.NoRoute(prox)
