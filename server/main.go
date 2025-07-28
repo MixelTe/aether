@@ -19,7 +19,7 @@ var (
 	upgrader  = websocket.Upgrader{} // use default option
 	wsc       *websocket.Conn
 	responses = proxy.MakeProxyResponses()
-	secret    = os.Getenv("secret")
+	secret    = os.Getenv("SECRET")
 )
 
 func main() {

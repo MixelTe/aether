@@ -82,12 +82,12 @@ func (ws *Websocket) Run() {
 }
 
 func (ws *Websocket) dial() {
-	wsc, _, err := websocket.DefaultDialer.Dial(ws.url, http.Header{
+	wsc, res, err := websocket.DefaultDialer.Dial(ws.url, http.Header{
 		"Authorization": []string{ws.secret},
 	})
 	ws.c = wsc
 	if err != nil {
-		log.Println("ws dial:", err)
+		log.Println("ws dial:", res.Status, err)
 	}
 }
 
