@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -25,15 +26,19 @@ func loadConfig() config {
 }
 
 func _loadConfig() (cfg config) {
-	const configFile = "aether_config.json"
-	f, err := os.ReadFile(configFile)
+	ex, err := os.Executable()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fPath := filepath.Join(filepath.Dir(ex), "aether_config.json")
+	f, err := os.ReadFile(fPath)
 	if os.IsNotExist(err) {
 		cfg = config{"localhost:8000", true, ""}
 		data, err := json.MarshalIndent(cfg, "", "    ")
 		if err != nil {
 			log.Fatal(err)
 		}
-		err = os.WriteFile(configFile, data, 0644)
+		err = os.WriteFile(fPath, data, 0644)
 		if err != nil {
 			log.Fatal(err)
 		}
