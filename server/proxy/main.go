@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type Request struct {
@@ -16,6 +17,7 @@ type Request struct {
 	URL     string              `json:"url"`
 	Headers map[string][]string `json:"headers"`
 	Body    []byte              `json:"body"`
+	created time.Time
 }
 
 type Response struct {
@@ -48,17 +50,23 @@ func makeRequest(req *http.Request) (*Request, error) {
 		URL:     req.URL.String(),
 		Headers: req.Header,
 		Body:    bodyBytes,
+		created: time.Now(),
 	}, nil
 }
 
+type response struct {
+	ch  chan *Response
+	req *Request
+}
+
 type responses struct {
-	mp map[int]chan *Response
+	mp map[int]response
 	mu sync.Mutex
 }
 
 func MakeProxyResponses() ProxyResponses {
 	return &responses{
-		mp: make(map[int]chan *Response),
+		mp: make(map[int]response),
 	}
 }
 
@@ -66,7 +74,7 @@ type ProxyResponses interface {
 	Add(*http.Request) (chan *Response, *Request, error)
 	Remove(id int)
 	Response(data []byte) error
-	CloseAll()
+	CloseOld()
 }
 
 func (rs *responses) Add(r *http.Request) (chan *Response, *Request, error) {
@@ -77,7 +85,7 @@ func (rs *responses) Add(r *http.Request) (chan *Response, *Request, error) {
 
 	ch := make(chan *Response, 1)
 	rs.mu.Lock()
-	rs.mp[req.ID] = ch
+	rs.mp[req.ID] = response{ch, req}
 	rs.mu.Unlock()
 
 	return ch, req, nil
@@ -85,19 +93,22 @@ func (rs *responses) Add(r *http.Request) (chan *Response, *Request, error) {
 
 func (rs *responses) Remove(id int) {
 	rs.mu.Lock()
-	ch, ok := rs.mp[id]
+	res, ok := rs.mp[id]
 	if ok {
-		close(ch)
+		close(res.ch)
 		delete(rs.mp, id)
 	}
 	rs.mu.Unlock()
 }
 
-func (rs *responses) CloseAll() {
+func (rs *responses) CloseOld() {
 	rs.mu.Lock()
 	for id, v := range rs.mp {
+		if v.req.created.Add(time.Minute * 10).After(time.Now()) {
+			continue
+		}
 		select {
-		case v <- &Response{
+		case v.ch <- &Response{
 			ID:  id,
 			Err: "connection was closed",
 		}:
@@ -107,9 +118,9 @@ func (rs *responses) CloseAll() {
 	rs.mu.Unlock()
 }
 
-func (rs *responses) get(id int) (ch chan *Response, ok bool) {
+func (rs *responses) get(id int) (res response, ok bool) {
 	rs.mu.Lock()
-	ch, ok = rs.mp[id]
+	res, ok = rs.mp[id]
 	rs.mu.Unlock()
 	return
 }
@@ -119,11 +130,11 @@ func (rs *responses) Response(data []byte) error {
 	if err := json.Unmarshal(data, &res); err != nil {
 		return err
 	}
-	ch, ok := rs.get(res.ID)
+	r, ok := rs.get(res.ID)
 	if !ok {
 		return fmt.Errorf("Response handler not found")
 	}
-	ch <- &res
+	r.ch <- &res
 	return nil
 }
 

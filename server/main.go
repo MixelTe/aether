@@ -1,12 +1,13 @@
 package main
 
 import (
-	"aether/server/proxy"
 	"encoding/json"
 	"flag"
 	"log"
 	"net/http"
 	"time"
+
+	"aether/server/proxy"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -42,7 +43,7 @@ func ws(c *gin.Context) {
 		return
 	}
 	defer func() {
-		responses.CloseAll()
+		responses.CloseOld()
 		wsc.Close()
 		wsc = nil
 	}()
