@@ -18,9 +18,10 @@ import (
 var (
 	port     = flag.String("port", "", "local forwarding port (required)")
 	host     = flag.String("host", "", "http service address (required)")
+	usewss   = flag.Bool("wss", true, "use secure connection")
 	wsc      *websocket.Conn
 	localUrl *url.URL
-	loginfo = log.New(os.Stdout, "", log.Ltime)
+	loginfo  = log.New(os.Stdout, "", log.Ltime)
 )
 
 func main() {
@@ -42,7 +43,11 @@ func main() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	u := url.URL{Scheme: "ws", Host: *host, Path: "/aether/client/ws"}
+	Scheme := "ws"
+	if *usewss {
+		Scheme = "wss"
+	}
+	u := url.URL{Scheme: Scheme, Host: *host, Path: "/aether/client/ws"}
 	loginfo.Printf("connecting to %s", u.String())
 
 	wsc, _, err = websocket.DefaultDialer.Dial(u.String(), nil)

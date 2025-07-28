@@ -33,10 +33,17 @@ func makeRequest(req *http.Request) (*Request, error) {
 	if err != nil {
 		return nil, err
 	}
+	realIp := req.Header.Get("X-Forwarded-For")
+	if realIp == "" {
+		realIp = req.Header.Get("X-Real-Ip")
+	}
+	if realIp == "" {
+		realIp = req.RemoteAddr
+	}
 	lastId++
 	return &Request{
 		ID:      lastId,
-		IP:      req.RemoteAddr,
+		IP:      realIp,
 		Method:  req.Method,
 		URL:     req.URL.String(),
 		Headers: req.Header,
