@@ -16,8 +16,6 @@ import (
 
 var (
 	port     = flag.String("port", "", "local forwarding port (required)")
-	host     = flag.String("host", "", "http service address (required)")
-	usewss   = flag.Bool("wss", true, "use secure connection")
 	ws       *mysocket.Websocket
 	localUrl *url.URL
 	loginfo  = log.New(os.Stdout, "", log.Ltime)
@@ -26,7 +24,8 @@ var (
 func main() {
 	flag.Parse()
 	log.SetFlags(log.Ltime)
-	if *port == "" || *host == "" {
+	cfg := loadConfig()
+	if *port == "" {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 		return
@@ -43,14 +42,14 @@ func main() {
 	signal.Notify(interrupt, os.Interrupt)
 
 	Scheme := "ws"
-	if *usewss {
+	if cfg.Usewss {
 		Scheme = "wss"
 	}
-	u := url.URL{Scheme: Scheme, Host: *host, Path: "/aether/client/ws"}
+	u := url.URL{Scheme: Scheme, Host: cfg.Host, Path: "/aether/client/ws"}
 	loginfo.Printf("forwarding to :%v", *port)
 	loginfo.Printf("connecting to %s", u.String())
 
-	ws = mysocket.New(u.String())
+	ws = mysocket.New(u.String(), cfg.Secret)
 	ws.OnTextMsg = processRequest
 	defer ws.Close()
 

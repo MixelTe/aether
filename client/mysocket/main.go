@@ -2,6 +2,7 @@ package mysocket
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -12,15 +13,16 @@ var loginfo = log.New(os.Stdout, "", log.Ltime)
 
 type Websocket struct {
 	url       string
+	secret    string
 	c         *websocket.Conn
 	done      chan struct{}
 	closed    bool
 	OnTextMsg func([]byte)
 }
 
-func New(url string) *Websocket {
+func New(url, secret string) *Websocket {
 	done := make(chan struct{}, 1)
-	return &Websocket{url, nil, done, false, func(b []byte) {}}
+	return &Websocket{url, secret, nil, done, false, func(b []byte) {}}
 }
 
 func (ws *Websocket) Close() {
@@ -80,7 +82,9 @@ func (ws *Websocket) Run() {
 }
 
 func (ws *Websocket) dial() {
-	wsc, _, err := websocket.DefaultDialer.Dial(ws.url, nil)
+	wsc, _, err := websocket.DefaultDialer.Dial(ws.url, http.Header{
+		"Authorization": []string{ws.secret},
+	})
 	ws.c = wsc
 	if err != nil {
 		log.Println("ws dial:", err)

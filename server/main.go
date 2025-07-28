@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"aether/server/proxy"
@@ -18,6 +19,7 @@ var (
 	upgrader  = websocket.Upgrader{} // use default option
 	wsc       *websocket.Conn
 	responses = proxy.MakeProxyResponses()
+	secret    = os.Getenv("secret")
 )
 
 func main() {
@@ -35,6 +37,11 @@ func ws(c *gin.Context) {
 		return
 	}
 	w, r := c.Writer, c.Request
+	s := r.Header.Get("Authorization")
+	if s != secret {
+		c.Status(http.StatusForbidden)
+		return
+	}
 	var err error
 	wsc, err = upgrader.Upgrade(w, r, nil)
 	if err != nil {

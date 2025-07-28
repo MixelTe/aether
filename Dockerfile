@@ -30,7 +30,7 @@ ARG TARGETARCH
 # Leverage a bind mount to the current directory to avoid having to copy the
 # source code into the container.
 
-COPY . /src
+COPY ./server /src/server
 RUN --mount=type=cache,target=/go/pkg/mod/ \
     # --mount=type=bind,target=/src \
     CGO_ENABLED=0 GOARCH=$TARGETARCH go build -o /bin/server .
