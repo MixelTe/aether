@@ -10,16 +10,15 @@ import (
 	"os/signal"
 	"time"
 
+	"aether/client/mysocket"
 	"aether/server/proxy"
-
-	"github.com/gorilla/websocket"
 )
 
 var (
 	port     = flag.String("port", "", "local forwarding port (required)")
 	host     = flag.String("host", "", "http service address (required)")
 	usewss   = flag.Bool("wss", true, "use secure connection")
-	wsc      *websocket.Conn
+	ws       *mysocket.Websocket
 	localUrl *url.URL
 	loginfo  = log.New(os.Stdout, "", log.Ltime)
 )
@@ -48,45 +47,24 @@ func main() {
 		Scheme = "wss"
 	}
 	u := url.URL{Scheme: Scheme, Host: *host, Path: "/aether/client/ws"}
+	loginfo.Printf("forwarding to :%v", *port)
 	loginfo.Printf("connecting to %s", u.String())
 
-	wsc, _, err = websocket.DefaultDialer.Dial(u.String(), nil)
-	if err != nil {
-		log.Fatal("dial:", err)
-	}
-	defer wsc.Close()
+	ws = mysocket.New(u.String())
+	ws.OnTextMsg = processRequest
+	defer ws.Close()
 
-	done := make(chan struct{})
-
-	go func() {
-		defer close(done)
-		for {
-			mt, message, err := wsc.ReadMessage()
-			if err != nil {
-				log.Println("read:", err)
-				return
-			}
-			if mt != websocket.TextMessage {
-				continue
-			}
-			go processRequest(message)
-		}
-	}()
+	go ws.Run()
 
 	for {
 		select {
-		case <-done:
+		case <-ws.Done():
 			return
 		case <-interrupt:
 			loginfo.Println("interrupt")
-
-			err := wsc.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				log.Println("write close:", err)
-				return
-			}
+			ws.CloseMessage()
 			select {
-			case <-done:
+			case <-ws.Done():
 			case <-time.After(time.Second):
 			}
 			return
@@ -101,24 +79,24 @@ func processRequest(message []byte) {
 		return
 	}
 
-	res, err := sendRequest(req)
+	res, code, err := sendRequest(req)
 	if err != nil {
 		log.Println("req: ", err)
 		jsonBytes, err := req.ResponseError(err)
 		if err == nil {
-			wsc.WriteMessage(websocket.TextMessage, jsonBytes)
+			ws.WriteMessage(jsonBytes)
 		}
 		return
 	}
 
-	loginfo.Printf("[%v] %v", req.Method, req.URL)
-	wsc.WriteMessage(websocket.TextMessage, res)
+	loginfo.Printf("[%v] %v %v", req.Method, code, req.URL)
+	ws.WriteMessage(res)
 }
 
-func sendRequest(r *proxy.Request) ([]byte, error) {
+func sendRequest(r *proxy.Request) ([]byte, int, error) {
 	req, err := r.ToHttp()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	req.URL.Scheme = localUrl.Scheme
@@ -126,8 +104,9 @@ func sendRequest(r *proxy.Request) ([]byte, error) {
 
 	res, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return r.Response(res)
+	resp, err := r.Response(res)
+	return resp, res.StatusCode, err
 }
